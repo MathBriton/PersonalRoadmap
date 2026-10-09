@@ -245,3 +245,92 @@ test('contarRevisoes conta os itens de todos os roadmaps', () => {
   assert.equal(contarRevisoes(entradas, AGORA), 2);
   assert.equal(contarRevisoes([], AGORA), 0);
 });
+
+// Roadmap montado à mão, sem passar por validarRoadmap (que já limparia `filho` inexistente):
+// a fila não pode depender de o chamador ter validado antes.
+test('toleram roadmap não validado com filho inexistente ou herdado de Object.prototype', () => {
+  const bruto = {
+    raiz: 'r',
+    grafos: {
+      r: {
+        titulo: 'R',
+        nos: [
+          { id: 'a', titulo: 'A', filho: 'fantasma' },
+          { id: 'b', titulo: 'B', filho: 'constructor' },
+          { id: 'c', titulo: 'C', filho: '__proto__' },
+          { id: 'd', titulo: 'D', filho: 'toString' },
+          { id: 'e', titulo: 'E', filho: 'g1' },
+        ],
+      },
+      g1: { titulo: 'G1', nos: [{ id: 'x', titulo: 'X' }] },
+    },
+  };
+  for (const nome of ['fantasma', 'constructor', '__proto__', 'toString']) assert.equal(caminhoAteGrafo(bruto, nome), null, nome);
+  assert.deepEqual(caminhoAteGrafo(bruto, 'g1'), ['r', 'g1']);
+  const registros = { 'r/a': vencido(), 'g1/x': vencido() };
+  assert.deepEqual(filaDeRevisao([{ id: 'x', roadmap: bruto, registros }], AGORA).map((item) => `${item.grafoId}/${item.noId}`), ['g1/x', 'r/a']);
+});
+
+test('uma raiz herdada de Object.prototype não é um grafo', () => {
+  const bruto = { raiz: 'constructor', grafos: { a: { titulo: 'A', nos: [{ id: 'n', titulo: 'N' }] } } };
+  assert.equal(caminhoAteGrafo(bruto, 'a'), null);
+  assert.deepEqual(filaDeRevisao([{ id: 'x', roadmap: bruto, registros: { 'a/n': vencido() } }], AGORA), []);
+});
+
+// O primeiro grafo descoberto pela busca é "z-grafo"; sem desempate por grafoId, ele sairia antes de "a-grafo".
+test('filaDeRevisao desempata por grafoId mesmo quando a ordem de descoberta é outra', () => {
+  const roadmap = montar({ r: [['p', 'z-grafo'], ['q', 'a-grafo']], 'z-grafo': ['n'], 'a-grafo': ['n'] });
+  const registros = { 'z-grafo/n': vencido(3), 'a-grafo/n': vencido(3) };
+  const fila = filaDeRevisao([{ id: 'x', roadmap, registros }], AGORA);
+  assert.deepEqual(fila.map((item) => item.grafoId), ['a-grafo', 'z-grafo']);
+});
+
+// 20 mil grafos em cadeia cabem nos 2 MB que o servidor aceita. Subir até a raiz para cada grafo,
+// mesmo sem card nenhum para revisar, levava segundos a cada atualização do selo da tela inicial.
+test('contarRevisoes e filaDeRevisao não ficam quadráticos em cadeias longas de grafos', () => {
+  const total = 20000;
+  const grafos = {};
+  for (let i = 0; i < total; i += 1) {
+    grafos[`g${i}`] = { titulo: `G${i}`, nos: [{ id: 'a', titulo: 'A', filho: i + 1 < total ? `g${i + 1}` : undefined }] };
+  }
+  const { roadmap } = validarRoadmap({ raiz: 'g0', grafos });
+  const ultimo = `g${total - 1}`;
+
+  const inicio = performance.now();
+  assert.equal(contarRevisoes([{ id: 'x', roadmap, registros: {} }], AGORA), 0);
+  assert.equal(contarRevisoes([{ id: 'x', roadmap, registros: { [`${ultimo}/a`]: vencido() } }], AGORA), 1);
+  const fila = filaDeRevisao([{ id: 'x', roadmap, registros: { [`${ultimo}/a`]: vencido() } }], AGORA);
+  const gasto = performance.now() - inicio;
+
+  assert.equal(fila.length, 1);
+  assert.equal(fila[0].caminho.length, total);
+  assert.equal(fila[0].caminho[0], 'g0');
+  assert.equal(fila[0].caminho.at(-1), ultimo);
+  assert.equal(fila[0].trilha.at(-1), `G${total - 1}`);
+  assert.ok(gasto < 2000, `levou ${Math.round(gasto)} ms`);
+});
+
+test('os cards do mesmo grafo recebem o mesmo caminho, e o de outros grafos o seu', () => {
+  const roadmap = montar({ r: [['a', 'g1'], ['b', 'g2']], g1: ['x', 'y'], g2: ['z'] });
+  const registros = { 'g1/x': vencido(1), 'g2/z': vencido(2), 'g1/y': vencido(3) };
+  const fila = filaDeRevisao([{ id: 'x', roadmap, registros }], AGORA);
+  assert.deepEqual(fila.map((item) => [item.noId, item.caminho]), [['y', ['r', 'g1']], ['z', ['r', 'g2']], ['x', ['r', 'g1']]]);
+});
+
+// Dois roadmaps com um grafo de mesmo id mas caminhos diferentes até ele: o caminho de um não pode vazar para o outro.
+test('o caminho de cada card é o do seu roadmap, mesmo com grafos de mesmo id em roadmaps diferentes', () => {
+  const direto = montar({ r: [['a', 'g1']], g1: ['x'] });
+  const longo = montar({ r: [['a', 'meio']], meio: [['b', 'g1']], g1: ['x'] });
+  const registros = { 'g1/x': vencido() };
+  const fila = filaDeRevisao(
+    [
+      { id: 'direto', roadmap: direto, registros },
+      { id: 'longo', roadmap: longo, registros },
+    ],
+    AGORA,
+  );
+  assert.deepEqual(fila.map((item) => [item.roadmapId, item.caminho, item.trilha]), [
+    ['direto', ['r', 'g1'], ['Grafo r', 'Grafo g1']],
+    ['longo', ['r', 'meio', 'g1'], ['Grafo r', 'Grafo meio', 'Grafo g1']],
+  ]);
+});

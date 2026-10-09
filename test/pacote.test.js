@@ -458,3 +458,99 @@ test('ErroPacote é um Error com nome próprio e guarda a causa quando há', () 
   assert.equal(erro.name, 'ErroPacote');
   assert.equal(erro.cause, 'y');
 });
+
+// --- limites exatos e avisos de correção (pontos que os testes anteriores deixavam passar) ---
+
+test('o limite de texto vale a partir de MAX_TEXTO + 1 caracteres', () => {
+  assertErroPacote('x'.repeat(MAX_TEXTO), /não é um JSON válido/);
+  assertErroPacote('x'.repeat(MAX_TEXTO + 1), /grande demais/);
+});
+
+test('um resetEm exatamente na tolerância de um dia é mantido; um milissegundo além é descartado', () => {
+  const limite = AGORA + DIA_MS;
+  const exato = ler(pacoteMinimo({ progresso: { resetEm: limite, registros: {} } }));
+  assert.equal(exato.progresso.resetEm, limite);
+  assert.deepEqual(exato.avisos, []);
+  const alem = ler(pacoteMinimo({ progresso: { resetEm: limite + 1, registros: {} } }));
+  assert.equal(alem.progresso.resetEm, 0);
+  assert.deepEqual(alem.avisos, ['Datas ou intervalos do progresso fora do possível foram corrigidos.']);
+});
+
+test('cada campo fora do possível, sozinho, gera o aviso de correção e é limitado', () => {
+  const aviso = ['Datas ou intervalos do progresso fora do possível foram corrigidos.'];
+  const dominado = { status: 'dominado', intervalo: 2, proxima: AGORA + DIA_MS, atualizado: AGORA };
+  const casos = [
+    ['atualizado', { atualizado: 1e300 }, { atualizado: AGORA + DIA_MS }],
+    ['intervalo', { intervalo: 1e300 }, { intervalo: 36500 }],
+    ['proxima', { proxima: 1e300 }, { proxima: AGORA + 36500 * DIA_MS }],
+  ];
+  for (const [campo, mudanca, esperado] of casos) {
+    const lido = ler(pacoteMinimo({ progresso: { resetEm: 0, registros: { 'r/a': { ...dominado, ...mudanca } } } }));
+    assert.deepEqual(lido.progresso.registros['r/a'], { ...dominado, ...esperado }, campo);
+    assert.deepEqual(lido.avisos, aviso, campo);
+  }
+});
+
+test('valores legítimos no limite do possível passam intactos e sem aviso', () => {
+  const noLimite = { status: 'dominado', intervalo: 36500, proxima: AGORA + 36500 * DIA_MS, atualizado: AGORA + DIA_MS };
+  const lido = ler(pacoteMinimo({ progresso: { resetEm: 0, registros: { 'r/a': noLimite } } }));
+  assert.deepEqual(lido.progresso.registros['r/a'], noLimite);
+  assert.deepEqual(lido.avisos, []);
+});
+
+test('o limite de tópicos conta os nós como vieram no arquivo, válidos ou não', () => {
+  const sem = (nos) => ({ raiz: 'r', grafos: { r: { titulo: 'R', nos } } });
+  assertErroPacote(sem(Array.from({ length: MAX_NOS + 1 }, () => ({}))), /5001 tópicos/);
+  assertErroPacote(sem(Array.from({ length: MAX_NOS + 1 }, () => ({ id: 'a' }))), /5001 tópicos/);
+  assertErroPacote(sem(Array.from({ length: MAX_NOS + 1 }, () => 'texto')), /5001 tópicos/);
+});
+
+// --- erros internos e texto do arquivo nas mensagens ---
+
+test('uma falha interna (pilha estourada) vira a mensagem genérica em português, com a causa guardada', () => {
+  // JSON.parse aguenta o aninhamento, mas JSON.stringify, usado por validarRoadmap no aviso da aresta, não.
+  const fundo = 100_000;
+  const texto = `{"raiz":"r","grafos":{"r":{"nos":[{"id":"a"}],"arestas":[${'['.repeat(fundo)}${']'.repeat(fundo)}]}}}`;
+  assert.throws(
+    () => lerPacote(texto),
+    (erro) => {
+      assert.ok(erro instanceof ErroPacote);
+      assert.equal(erro.message, 'Não foi possível ler o arquivo: o conteúdo tem um formato inesperado.');
+      assert.ok(erro.cause instanceof RangeError);
+      return true;
+    },
+  );
+});
+
+test('textos do arquivo ecoados em avisos e erros são encurtados', () => {
+  const comprido = 'g'.repeat(1_000_000);
+  const nos = Array.from({ length: 50 }, (_, i) => ({ id: `n${i}`, links: [['x', 'javascript:1']] }));
+  const lido = ler({ raiz: comprido, grafos: { [comprido]: { titulo: 'T', nos } } });
+  assert.equal(lido.avisos.length, 21);
+  for (const aviso of lido.avisos) assert.ok(aviso.length <= 400, `aviso de ${aviso.length} caracteres`);
+  // O começo diz de que grafo se trata e o fim, o que houve com o link.
+  assert.match(lido.avisos[0], /^Grafo "g+….*link inválido ou que não é http\(s\); ignorado\.$/);
+  assert.match(lido.avisos.at(-1), /e mais 30 avisos/);
+
+  assert.throws(
+    () => lerPacote({ raiz: 'x'.repeat(4_000_000), grafos: { a: { nos: [] } } }),
+    (erro) => {
+      assert.ok(erro instanceof ErroPacote);
+      assert.ok(erro.message.length <= 400, `mensagem de ${erro.message.length} caracteres`);
+      assert.match(erro.message, /^Roadmap inválido: o grafo raiz "x+…x+" não existe\.$/);
+      return true;
+    },
+  );
+});
+
+test('avisos e mensagens curtos não são alterados', () => {
+  assertErroPacote({ raiz: 'a', grafos: {} }, /^Roadmap inválido: o grafo raiz "a" não existe\.$/);
+});
+
+test('o resumo de avisos só aparece acima de 20 e concorda no singular', () => {
+  const comAvisos = (n) => ler({ raiz: 'r', grafos: { r: { titulo: 'R', nos: [{ id: 'a' }], arestas: Array.from({ length: n }, (_, i) => ['a', `f${i}`]) } } }).avisos;
+  assert.equal(comAvisos(20).length, 20);
+  assert.ok(comAvisos(20).every((aviso) => /usa nó inexistente/.test(aviso)));
+  assert.deepEqual(comAvisos(21).slice(20), ['... e mais 1 aviso.']);
+  assert.deepEqual(comAvisos(22).slice(20), ['... e mais 2 avisos.']);
+});

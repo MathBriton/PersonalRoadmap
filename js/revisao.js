@@ -51,6 +51,27 @@ export function caminhoAteGrafo(roadmap, grafoId) {
 const comparar = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 
 /**
+ * Cards em revisão dos grafos alcançáveis, ainda sem caminho nem trilha. Subir até a raiz custa o
+ * tamanho do caminho, e quem só conta (o selo, a cada atualização de progresso) não deve pagar isso
+ * por grafo: numa cadeia de milhares de grafos o custo viraria quadrático mesmo sem nada para revisar.
+ */
+function* cardsEmRevisao(entradas, agora) {
+  for (const { id: roadmapId, roadmap, registros } of entradas) {
+    if (registros == null) continue;
+    const pais = paisDosGrafos(roadmap);
+    for (const grafoId of pais.keys()) {
+      for (const no of roadmap.grafos[grafoId].nos) {
+        const chave = chaveDoNo(grafoId, no.id);
+        if (!tem(registros, chave)) continue;
+        // Normaliza porque o storage pode ter sido editado à mão; garante `proxima` e `intervalo` numéricos.
+        const registro = normalizarRegistro(registros[chave]);
+        if (statusExibido(registro, agora) === 'revisar') yield { roadmapId, roadmap, pais, grafoId, no, registro };
+      }
+    }
+  }
+}
+
+/**
  * Cards para revisar agora, dos mais atrasados para os mais recentes.
  * @param {{id: string, roadmap: object, registros: object}[]} entradas
  * @param {number} agora instante em ms
@@ -59,29 +80,21 @@ const comparar = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
  */
 export function filaDeRevisao(entradas, agora) {
   const itens = [];
-  for (const { id: roadmapId, roadmap, registros } of entradas) {
-    const pais = paisDosGrafos(roadmap);
-    for (const grafoId of pais.keys()) {
-      const caminho = caminhoPelosPais(pais, grafoId);
-      for (const no of roadmap.grafos[grafoId].nos) {
-        const chave = chaveDoNo(grafoId, no.id);
-        if (registros == null || !tem(registros, chave)) continue;
-        // Normaliza porque o storage pode ter sido editado à mão; garante `proxima` e `intervalo` numéricos.
-        const registro = normalizarRegistro(registros[chave]);
-        if (statusExibido(registro, agora) !== 'revisar') continue;
-        itens.push({
-          roadmapId,
-          roadmapTitulo: tituloDoRoadmap(roadmap),
-          grafoId,
-          caminho: [...caminho],
-          trilha: caminho.map((id) => roadmap.grafos[id].titulo),
-          noId: no.id,
-          noTitulo: no.titulo,
-          proxima: registro.proxima,
-          intervalo: registro.intervalo,
-        });
-      }
-    }
+  let atual = null; // caminho do grafo em curso: os cards de um mesmo grafo vêm em sequência
+  for (const { roadmapId, roadmap, pais, grafoId, no, registro } of cardsEmRevisao(entradas, agora)) {
+    if (atual?.pais !== pais || atual.grafoId !== grafoId) atual = { pais, grafoId, caminho: caminhoPelosPais(pais, grafoId) };
+    const { caminho } = atual;
+    itens.push({
+      roadmapId,
+      roadmapTitulo: tituloDoRoadmap(roadmap),
+      grafoId,
+      caminho: [...caminho],
+      trilha: caminho.map((id) => roadmap.grafos[id].titulo),
+      noId: no.id,
+      noTitulo: no.titulo,
+      proxima: registro.proxima,
+      intervalo: registro.intervalo,
+    });
   }
   return itens.sort(
     (a, b) =>
@@ -93,4 +106,8 @@ export function filaDeRevisao(entradas, agora) {
 }
 
 /** Quantos cards estão para revisar (o número do selo na tela inicial). */
-export const contarRevisoes = (entradas, agora) => filaDeRevisao(entradas, agora).length;
+export function contarRevisoes(entradas, agora) {
+  let total = 0;
+  for (const _card of cardsEmRevisao(entradas, agora)) total += 1;
+  return total;
+}

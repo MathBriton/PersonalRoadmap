@@ -20,6 +20,9 @@ export const MAX_NOS = 5000;
 export const MAX_GRAFOS = 1000;
 export const MAX_TEXTO = 5 * 1024 * 1024;
 const MAX_AVISOS = 20;
+// Os avisos e a mensagem de raiz inexistente ecoam textos do arquivo (ids, raiz); um id de megabytes
+// viraria uma linha de megabytes na tela. O corte é no meio: o começo diz onde, o fim diz o que houve.
+const MAX_LINHA = 300;
 
 // Teto de um intervalo de revisão (100 anos); acima disso o valor só pode ser lixo ou ataque.
 const INTERVALO_MAX_DIAS = 36500;
@@ -33,6 +36,7 @@ export class ErroPacote extends Error {
 
 const tem = (objeto, chave) => Object.hasOwn(objeto, chave);
 const ehObjeto = (valor) => valor !== null && typeof valor === 'object' && !Array.isArray(valor);
+const encurtar = (texto) => (texto.length > MAX_LINHA ? `${texto.slice(0, MAX_LINHA / 2)}…${texto.slice(-MAX_LINHA / 2)}` : texto);
 
 function instanteISO(agora) {
   const data = typeof agora === 'number' || agora instanceof Date ? new Date(agora) : new Date(NaN);
@@ -114,7 +118,7 @@ function validar(roadmapBruto) {
     return validarRoadmap(roadmapBruto);
   } catch (erro) {
     // Um `Error` simples é a mensagem em português de `validarRoadmap`; TypeError e afins viram o aviso genérico.
-    if (erro?.constructor === Error) throw new ErroPacote(erro.message, { cause: erro });
+    if (erro?.constructor === Error) throw new ErroPacote(encurtar(erro.message), { cause: erro });
     throw erro;
   }
 }
@@ -186,10 +190,12 @@ function lerProgresso(bruto, roadmap, agora, avisos) {
   return { resetEm: normalizado.resetEm, registros };
 }
 
-/** Evita que um arquivo hostil devolva milhares de avisos para a tela. */
+/** Evita que um arquivo hostil devolva milhares de avisos, ou avisos enormes, para a tela. */
 function resumirAvisos(avisos) {
-  if (avisos.length <= MAX_AVISOS) return avisos;
-  return [...avisos.slice(0, MAX_AVISOS), `... e mais ${avisos.length - MAX_AVISOS} avisos.`];
+  const linhas = avisos.slice(0, MAX_AVISOS).map(encurtar);
+  const resto = avisos.length - MAX_AVISOS;
+  if (resto > 0) linhas.push(`... e mais ${resto} ${resto === 1 ? 'aviso' : 'avisos'}.`);
+  return linhas;
 }
 
 /**

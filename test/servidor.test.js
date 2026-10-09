@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, mock, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { criarApi, ErroApi } from '../js/api.js';
 import { grafosAlcancaveis, validarRoadmap } from '../js/dados.js';
 import { criarApp } from '../server/app.js';
 import { criarArmazenamento } from '../server/armazenamento.js';
@@ -631,7 +632,9 @@ test('escritas sem Content-Type application/json: 415, e nada é gravado', () =>
       { metodo: 'POST', caminho: '/api/roadmaps', cabecalhos: { 'content-type': 'application/json; charset=latin1' }, corpo },
       { metodo: 'PUT', caminho: '/api/roadmaps/x', cabecalhos: { 'content-type': 'text/plain' }, corpo: JSON.stringify({ roadmap: roadmap('Z') }) },
       { metodo: 'POST', caminho: '/api/roadmaps/x/progresso', cabecalhos: {}, corpo: JSON.stringify({ registros: { 'g/n': reg('novo', 1) } }) },
-      { metodo: 'DELETE', caminho: '/api/roadmaps/x', cabecalhos: {} },
+      // DELETE com corpo segue a regra geral; sem corpo, ver o teste seguinte.
+      // (o node:http não declara o tamanho do corpo de um DELETE sozinho, por isso o Content-Length à mão)
+      { metodo: 'DELETE', caminho: '/api/roadmaps/x', cabecalhos: { 'content-type': 'text/plain', 'content-length': '4' }, corpo: 'lixo' },
     ];
     for (const tentativa of tentativas) {
       const r = await bruto(tentativa);
@@ -646,6 +649,62 @@ test('escritas sem Content-Type application/json: 415, e nada é gravado', () =>
     // Com charset utf-8 declarado funciona.
     const ok = await bruto({ metodo: 'POST', caminho: '/api/roadmaps', cabecalhos: { 'content-type': 'Application/JSON; charset=UTF-8' }, corpo });
     assert.equal(ok.status, 201);
+  }));
+
+test('DELETE sem corpo funciona sem Content-Type (é como o cliente do app envia), mas Origin e Host continuam valendo', () =>
+  comServidor(async ({ bruto, porta, chamar }) => {
+    for (const id of ['a', 'b', 'c']) await chamar('POST', '/api/roadmaps', { id, roadmap: roadmap() });
+
+    // Origin estranho: 403 mesmo sem Content-Type, e nada é apagado.
+    const outraOrigem = await bruto({ metodo: 'DELETE', caminho: '/api/roadmaps/a', cabecalhos: { origin: 'http://evil.example' } });
+    assert.equal(outraOrigem.status, 403);
+    const hostRuim = await bruto({ metodo: 'DELETE', caminho: '/api/roadmaps/a', cabecalhos: { host: 'evil.example' } });
+    assert.equal(hostRuim.status, 403);
+    assert.equal((await chamar('GET', '/api/roadmaps')).corpo.length, 3);
+
+    // Sem Content-Type e sem corpo, com a Origin certa (o que o navegador faz): apaga.
+    const semTipo = await bruto({ metodo: 'DELETE', caminho: '/api/roadmaps/a', cabecalhos: { origin: `http://127.0.0.1:${porta}` } });
+    assert.equal(semTipo.status, 204);
+    assert.equal(semTipo.texto, '');
+    // Content-Length: 0 explícito também é "sem corpo".
+    assert.equal((await bruto({ metodo: 'DELETE', caminho: '/api/roadmaps/b', cabecalhos: { 'content-length': '0' } })).status, 204);
+    // Id inexistente continua sendo 404, não 415.
+    assert.equal((await bruto({ metodo: 'DELETE', caminho: '/api/roadmaps/a' })).status, 404);
+    assert.equal((await bruto({ metodo: 'DELETE', caminho: '/api/roadmaps/Invalido' })).status, 404);
+
+    // Só POST/PUT (e DELETE com corpo) exigem o tipo: nada mais perdeu a exigência.
+    const post = await bruto({ metodo: 'POST', caminho: '/api/roadmaps/c/progresso', corpo: '{"registros":{}}', cabecalhos: { 'content-length': '16' } });
+    assert.equal(post.status, 415);
+    const comCorpo = await bruto({ metodo: 'DELETE', caminho: '/api/roadmaps/c', cabecalhos: { 'content-length': '2' }, corpo: '{}' });
+    assert.equal(comCorpo.status, 415);
+    assert.deepEqual((await chamar('GET', '/api/roadmaps')).corpo.map((item) => item.id), ['c']);
+  }));
+
+test('o cliente real do frontend (js/api.js) funciona contra o servidor: criar, salvar, 409, progresso e excluir', () =>
+  comServidor(async ({ base }) => {
+    const api = criarApi({ base: new URL('/api/', base) });
+    assert.deepEqual(await api.saude(), { ok: true });
+
+    const criado = await api.criarRoadmap({ roadmap: roadmap('Via cliente') });
+    assert.equal(criado.id, 'via-cliente');
+    assert.deepEqual((await api.listarRoadmaps()).map((item) => item.id), ['via-cliente']);
+
+    const salvo = await api.salvarRoadmap(criado.id, roadmap('Editado'), criado.atualizadoEm);
+    assert.ok(salvo.atualizadoEm > criado.atualizadoEm);
+    await assert.rejects(
+      api.salvarRoadmap(criado.id, roadmap('Velho'), criado.atualizadoEm),
+      (erro) => erro instanceof ErroApi && erro.status === 409 && erro.corpo.atualizadoEm === salvo.atualizadoEm,
+    );
+
+    const mesclado = await api.mesclarProgresso(criado.id, { resetEm: 0, registros: { 'raiz/a': reg('estudando', 10) } });
+    assert.deepEqual(await api.obterProgresso(criado.id), mesclado);
+    assert.equal((await api.obterRoadmap(criado.id)).roadmap.grafos.raiz.titulo, 'Editado');
+
+    // É o botão "Excluir" da tela inicial: o cliente não manda Content-Type quando não há corpo.
+    assert.equal(await api.excluirRoadmap(criado.id), null);
+    await assert.rejects(api.obterRoadmap(criado.id), { status: 404 });
+    await assert.rejects(api.excluirRoadmap(criado.id), { status: 404 });
+    assert.deepEqual(await api.listarRoadmaps(), []);
   }));
 
 test('ids inválidos na URL nunca chegam ao armazenamento: 404 em todas as rotas com :id', () =>
@@ -779,6 +838,36 @@ test('Host fora da lista de loopback: 403 em JSON (DNS rebinding), inclusive em 
       assert.equal((await bruto({ caminho: '/api/saude', cabecalhos: { Host: host } })).status, 200, host);
     }
   }));
+
+test('na porta 80 o navegador omite ":80" do Host: o Host sem porta só é aceito nessa porta', async () => {
+  const armazenamento = await criarArmazenamento({ arquivo: path.join(await novoDiretorio(), 'dados.json') });
+  const servidor = createServer(criarApp({ armazenamento, diretorioPublico: RAIZ }));
+  // Escutar na 80 exige privilégio; o app só consulta `socket.localPort`, então ele é trocado por conexão.
+  let portaDaConexao;
+  servidor.on('connection', (socket) => Object.defineProperty(socket, 'localPort', { value: portaDaConexao }));
+  await new Promise((resolver) => servidor.listen(0, '127.0.0.1', resolver));
+  const porta = servidor.address().port;
+  const status = async (host) => (await bruto(porta, { caminho: '/api/saude', cabecalhos: { Host: host } })).status;
+  try {
+    portaDaConexao = 80;
+    for (const host of ['localhost', '127.0.0.1', '[::1]', 'LocalHost', 'localhost:80', '127.0.0.1:80', '[::1]:80']) {
+      assert.equal(await status(host), 200, host);
+    }
+    for (const host of [`localhost:${porta}`, 'evil.example', 'evil.example:80', 'localhost:81', '127.0.0.1.evil.example', 'localhost.evil.example', '127.0.0.2']) {
+      assert.equal(await status(host), 403, host);
+    }
+    // Em qualquer outra porta o navegador sempre manda a porta, então Host sem porta continua recusado.
+    portaDaConexao = porta;
+    assert.equal(await status('localhost'), 403);
+    assert.equal(await status('127.0.0.1'), 403);
+    assert.equal(await status(`localhost:${porta}`), 200);
+    assert.equal(await status('localhost:80'), 403);
+  } finally {
+    servidor.closeAllConnections();
+    await new Promise((resolver) => servidor.close(resolver));
+    await armazenamento.aguardarGravacoes();
+  }
+});
 
 test('HOSTS_PERMITIDOS acrescenta hosts aceitos; com HOST não loopback o Host não é validado', async () => {
   await comServidor(

@@ -3,7 +3,8 @@
 // A API não tem login. O que impede que um site qualquer aberto no mesmo navegador leia ou
 // altere os dados:
 //  - não há cabeçalhos CORS, então o preflight de PUT/DELETE falha e a resposta não é legível;
-//  - escritas exigem `Content-Type: application/json`, o que também força preflight;
+//  - escritas com corpo exigem `Content-Type: application/json`, o que também força preflight
+//    (DELETE sem corpo já faz preflight por ser um método não simples);
 //  - escritas com `Origin` só valem se ele for o mesmo host da requisição (403);
 //  - com HOST de loopback, o cabeçalho `Host` precisa ser de loopback na porta do servidor
 //    (proteção contra DNS rebinding, em que um domínio externo passa a apontar para 127.0.0.1).
@@ -74,6 +75,8 @@ function validarHost(hostsPermitidos) {
     const porta = req.socket.localPort;
     const recebido = String(req.headers.host ?? '').toLowerCase();
     const aceitos = [`localhost:${porta}`, `127.0.0.1:${porta}`, `[::1]:${porta}`];
+    // Na porta padrão do HTTP o navegador omite ":80" do Host; em qualquer outra ele sempre manda a porta.
+    if (porta === 80) aceitos.push('localhost', '127.0.0.1', '[::1]');
     if (aceitos.includes(recebido) || extras.has(recebido)) return next();
     res.status(403).json({ erro: 'Host não permitido.' });
   };
@@ -87,6 +90,8 @@ function origemIgualAoHost(origem, host) {
   }
 }
 
+const temCorpo = (req) => req.headers['transfer-encoding'] !== undefined || Number(req.headers['content-length'] ?? 0) > 0;
+
 /** Escritas: Origin coerente (403), Content-Type JSON (415) e só então a leitura do corpo (413/400). */
 function escritas() {
   const lerJson = express.json({ limit: LIMITE_CORPO });
@@ -95,6 +100,10 @@ function escritas() {
     if (req.headers.origin !== undefined && !origemIgualAoHost(req.headers.origin, req.headers.host)) {
       return res.status(403).json({ erro: 'Origem não permitida.' });
     }
+    // DELETE sem corpo não tem o que declarar. Exigir Content-Type aqui não protege nada (o navegador
+    // sempre faz preflight de DELETE e a API não tem CORS) e quebraria o cliente do app (js/api.js),
+    // que só manda o cabeçalho junto com um corpo.
+    if (req.method === 'DELETE' && !temCorpo(req)) return next();
     // `req.is` devolve null quando não há corpo (DELETE), por isso o cabeçalho é lido à mão.
     const tipo = String(req.headers['content-type'] ?? '').split(';')[0].trim().toLowerCase();
     if (tipo !== 'application/json') {
