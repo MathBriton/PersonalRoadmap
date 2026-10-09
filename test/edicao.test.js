@@ -416,6 +416,53 @@ test('definirOrigens recusa atomicamente: uma origem boa e uma ruim não aplicam
   recusar(base(), (r) => definirOrigens(r, 'raiz', 'c', ['a', 'fantasma']), /fantasma/);
 });
 
+// ---------- ciclo que já existia
+
+// `validarRoadmap` só avisa de ciclo e mantém o grafo (dados antigos, importação). Editar esse
+// grafo não pode travar por causa do ciclo antigo: só uma ligação que FECHA um ciclo novo é recusada.
+// Não usa `aplicar`, porque a entrada (com ciclo) nunca é "limpa".
+const comCicloAntigo = () => {
+  const { roadmap, avisos } = validarRoadmap({
+    raiz: 'r',
+    grafos: { r: { titulo: 'R', nos: [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }], arestas: [['a', 'b'], ['b', 'a']] } },
+  });
+  assert.equal(avisos.length, 1); // o aviso do ciclo
+  return roadmap;
+};
+
+test('ciclo antigo: definirOrigens com as mesmas origens do nó do ciclo não é recusado', () => {
+  const r = comCicloAntigo();
+  const antes = structuredClone(r);
+  assert.deepEqual(definirOrigens(r, 'r', 'b', ['a']), r);
+  assert.deepEqual(r, antes);
+});
+
+test('ciclo antigo: ligações fora do ciclo continuam possíveis', () => {
+  const r = comCicloAntigo();
+  assert.deepEqual(adicionarAresta(r, 'r', 'c', 'd').grafos.r.arestas, [['a', 'b'], ['b', 'a'], ['c', 'd']]);
+  assert.deepEqual(definirOrigens(r, 'r', 'd', ['c', 'a']).grafos.r.arestas, [['a', 'b'], ['b', 'a'], ['c', 'd'], ['a', 'd']]);
+  assert.equal(adicionarNo(r, 'r', { titulo: 'E' }, ['a']).roadmap.grafos.r.arestas.length, 3);
+});
+
+test('ciclo antigo: a busca que parte de dentro do ciclo termina (não gira para sempre)', () => {
+  const r = comCicloAntigo();
+  // c -> a entra no ciclo antigo sem fechar outro: a busca a partir de "a" volta a "a" e precisa parar
+  assert.deepEqual(adicionarAresta(r, 'r', 'c', 'a').grafos.r.arestas, [['a', 'b'], ['b', 'a'], ['c', 'a']]);
+  assert.deepEqual(definirOrigens(r, 'r', 'a', ['b', 'c']).grafos.r.arestas, [['a', 'b'], ['b', 'a'], ['c', 'a']]);
+});
+
+test('ciclo antigo: ainda recusa a ligação que fecha um ciclo novo', () => {
+  const r = adicionarAresta(comCicloAntigo(), 'r', 'c', 'd');
+  recusar(r, (x) => adicionarAresta(x, 'r', 'd', 'c'), /ciclo/);
+  recusar(r, (x) => definirOrigens(x, 'r', 'c', ['d']), /ciclo/);
+  recusar(r, (x) => definirOrigens(x, 'r', 'c', ['a', 'd']), /ciclo/);
+});
+
+test('ciclo antigo: remover uma aresta do ciclo o desfaz', () => {
+  const r = removerAresta(comCicloAntigo(), 'r', 'b', 'a');
+  assert.deepEqual(validarRoadmap(r).avisos, []);
+});
+
 // ---------- adicionarAresta / removerAresta
 
 test('adicionarAresta liga dois nós', () => {

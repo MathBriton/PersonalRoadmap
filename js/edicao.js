@@ -6,7 +6,6 @@
 
 import { grafosAlcancaveis } from './dados.js';
 import { gerarIdUnico } from './ids.js';
-import { temCiclo } from './layout.js';
 
 export class ErroEdicao extends Error {
   constructor(mensagem) {
@@ -103,6 +102,22 @@ function origensValidas(grafo, origens, noId) {
 
 const MENSAGEM_CICLO = 'Essa ligação criaria um ciclo: os tópicos precisam seguir uma ordem sem voltas.';
 
+// Seguindo as arestas, dá para ir de `inicio` até `destino`? Ligar `destino` -> `inicio` fecha um ciclo se sim.
+// Em vez de `temCiclo` no resultado: um grafo que já chegou com ciclo (`validarRoadmap` só avisa) não
+// pode travar toda edição nele; só a ligação que fecha um ciclo NOVO é recusada.
+function alcanca(arestas, inicio, destino) {
+  const visitados = new Set();
+  const pilha = [inicio];
+  while (pilha.length) {
+    const id = pilha.pop();
+    if (id === destino) return true;
+    if (visitados.has(id)) continue;
+    visitados.add(id);
+    for (const [de, para] of arestas) if (de === id) pilha.push(para);
+  }
+  return false;
+}
+
 /** Id de nó único dentro do grafo, gerado do título. */
 export function gerarIdNo(roadmap, grafoId, titulo) {
   const grafo = buscarGrafo(roadmap, grafoId);
@@ -168,9 +183,11 @@ export function definirOrigens(roadmap, grafoId, noId, origens) {
   // Mantém as arestas que continuam valendo, na mesma ordem, e acrescenta só as que faltam.
   const mantidas = grafo.arestas.filter(([de, para]) => para !== noId || fontes.includes(de));
   const jaLigadas = new Set(mantidas.filter(([, para]) => para === noId).map(([de]) => de));
-  grafo.arestas = [...mantidas, ...fontes.filter((de) => !jaLigadas.has(de)).map((de) => [de, noId])];
+  const novas = fontes.filter((de) => !jaLigadas.has(de));
 
-  if (temCiclo(grafo.nos, grafo.arestas)) throw erro(MENSAGEM_CICLO);
+  // Todas as arestas novas terminam em `noId`, então um ciclo novo passa por ele e volta a uma origem nova.
+  if (novas.some((de) => alcanca(mantidas, noId, de))) throw erro(MENSAGEM_CICLO);
+  grafo.arestas = [...mantidas, ...novas.map((de) => [de, noId])];
   return novo;
 }
 
@@ -183,8 +200,8 @@ export function adicionarAresta(roadmap, grafoId, de, para) {
   if (de === para) throw erro('Um tópico não pode depender de si mesmo.');
   if (grafo.arestas.some(([a, b]) => a === de && b === para)) return novo;
 
+  if (alcanca(grafo.arestas, para, de)) throw erro(MENSAGEM_CICLO);
   grafo.arestas.push([de, para]);
-  if (temCiclo(grafo.nos, grafo.arestas)) throw erro(MENSAGEM_CICLO);
   return novo;
 }
 
