@@ -286,3 +286,34 @@ export function grafosOrfaos(roadmap) {
   const alcancaveis = new Set(grafosAlcancaveis(roadmap));
   return Object.keys(roadmap.grafos).filter((id) => !alcancaveis.has(id));
 }
+
+/**
+ * Remove os grafos órfãos (sem pai alcançável da raiz) e os subgrafos que só eles alcançam.
+ * `somente` limita a poda aos órfãos listados: o editor passa só os que a própria edição acabou
+ * de deixar sem pai, para não apagar órfãos antigos (por exemplo, de um roadmap importado).
+ * `removidos` tem o mesmo formato de `removerNo`, para a UI zerar o progresso dos nós podados.
+ * @returns {{roadmap: object, removidos: {nos: {grafoId: string, noId: string}[], grafos: string[]}}}
+ */
+export function podarOrfaos(roadmap, { somente } = {}) {
+  const novo = copiar(roadmap);
+  const alcancaveis = new Set(grafosAlcancaveis(novo));
+  const permitidos = somente === undefined ? null : new Set(somente);
+  const alvos = new Set();
+  for (const id of Object.keys(novo.grafos)) {
+    if (alcancaveis.has(id) || (permitidos && !permitidos.has(id))) continue;
+    for (const alcancado of grafosAlcancaveis(novo, id)) if (!alcancaveis.has(alcancado)) alvos.add(alcancado);
+  }
+
+  const removidos = { nos: [], grafos: [...alvos] };
+  for (const id of alvos) {
+    for (const no of novo.grafos[id].nos) removidos.nos.push({ grafoId: id, noId: no.id });
+    delete novo.grafos[id];
+  }
+  // Um grafo que sobrou e apontava para um grafo podado ficaria com `filho` pendente.
+  for (const restante of Object.values(novo.grafos)) {
+    for (const no of restante.nos) {
+      if (no.filho !== undefined && !tem(novo.grafos, no.filho)) no.filho = undefined;
+    }
+  }
+  return { roadmap: novo, removidos };
+}

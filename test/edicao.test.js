@@ -12,6 +12,7 @@ import {
   gerarIdGrafo,
   gerarIdNo,
   grafosOrfaos,
+  podarOrfaos,
   removerAresta,
   removerNo,
   renomearGrafo,
@@ -778,4 +779,51 @@ test('um fluxo de edição seguido mantém o roadmap sempre válido e os ids est
   assert.deepEqual(r.grafos.extras.arestas, [['extra-1', 'extra-2']]);
   assert.deepEqual(ids(r.grafos.raiz), ['a', 'c']);
   assert.equal(tituloDoRoadmap(r), 'Final');
+});
+
+// ---------------------------------------------------------------- podarOrfaos
+
+test('podarOrfaos remove o órfão criado agora e os subgrafos que só ele alcança', () => {
+  // Tirar o filho de "a" deixa "sub" e "neto" órfãos (neto só é alcançado por sub).
+  const roadmap = atualizarNo(base(), 'raiz', 'a', { filho: null });
+  assert.deepEqual(grafosOrfaos(roadmap).sort(), ['neto', 'sub']);
+  const { roadmap: podado, removidos } = aplicar(roadmap, (r) => podarOrfaos(r));
+  assert.deepEqual(Object.keys(podado.grafos), ['raiz']);
+  assert.deepEqual(removidos.grafos.sort(), ['neto', 'sub']);
+  assert.deepEqual(
+    removidos.nos.map((n) => `${n.grafoId}/${n.noId}`).sort(),
+    ['neto/n1', 'sub/x', 'sub/y'],
+  );
+});
+
+test('podarOrfaos com `somente` poupa os órfãos antigos', () => {
+  let roadmap = criarGrafo(base(), 'Antigo').roadmap; // órfão que já existia
+  roadmap = atualizarNo(roadmap, 'raiz', 'a', { filho: null }); // agora sub e neto também
+  const { roadmap: podado, removidos } = aplicar(roadmap, (r) => podarOrfaos(r, { somente: ['sub'] }));
+  assert.deepEqual(removidos.grafos.sort(), ['neto', 'sub']); // neto vai junto: só era alcançado por sub
+  assert.deepEqual(Object.keys(podado.grafos).sort(), ['antigo', 'raiz']);
+});
+
+test('podarOrfaos sem órfãos não muda nada e não remove nada', () => {
+  const roadmap = base();
+  const { roadmap: igual, removidos } = aplicar(roadmap, (r) => podarOrfaos(r));
+  assert.deepEqual(igual, roadmap);
+  assert.deepEqual(removidos, { nos: [], grafos: [] });
+});
+
+test('podarOrfaos não remove um grafo que ainda tem outro pai alcançável', () => {
+  let roadmap = adicionarNo(base(), 'raiz', { titulo: 'D', filho: 'sub' }).roadmap; // d também abre "sub"
+  roadmap = atualizarNo(roadmap, 'raiz', 'a', { filho: null });
+  assert.deepEqual(grafosOrfaos(roadmap), []);
+  const { roadmap: podado, removidos } = aplicar(roadmap, (r) => podarOrfaos(r));
+  assert.deepEqual(Object.keys(podado.grafos).sort(), ['neto', 'raiz', 'sub']);
+  assert.deepEqual(removidos.grafos, []);
+});
+
+test('podarOrfaos limpa o `filho` pendente de órfãos antigos que apontavam para um podado', () => {
+  let roadmap = criarGrafo(base(), 'Antigo').roadmap;
+  roadmap = atualizarNo(roadmap, 'raiz', 'a', { filho: null });
+  roadmap = adicionarNo(roadmap, 'antigo', { titulo: 'Z', filho: 'sub' }).roadmap; // órfão antigo abre "sub"
+  const { roadmap: podado } = aplicar(roadmap, (r) => podarOrfaos(r, { somente: ['sub'] }));
+  assert.equal(podado.grafos.antigo.nos[0].filho, undefined);
 });

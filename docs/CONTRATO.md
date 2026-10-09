@@ -175,3 +175,13 @@ seguido de `ctx.sync.agendar(id)`.
 Playwright global: `import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs'` (Chromium já instalado; nunca rode `playwright install`).
 Suba o servidor com banco temporário e porta própria: `PORT=<porta livre> DB_FILE=<arquivo em diretório temporário> node server/index.js` e rode seus scripts a partir do diretório de rascunho do sistema (não os coloque no repositório).
 Bloqueie as fontes externas no navegador (`page.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort())`). Verifique de verdade: fluxo completo só com teclado, tema escuro, viewport de 375px, e que não há erros no console.
+
+---
+
+# Adendo (depois da parte 1)
+
+- `js/edicao.js` ganhou `podarOrfaos(roadmap, { somente } = {})` → `{ roadmap, removidos }` (mesmo formato de `removerNo`). Remove grafos órfãos e os subgrafos que só eles alcançam; `somente` limita a poda aos órfãos listados.
+- **Editor:** ao salvar um tópico cujo `filho` mudou ou foi removido, compare `grafosOrfaos` antes e depois. Se a edição deixou subgrafos sem pai, pergunte (`confirmar`, foco em manter): "O subgrafo «X» (N tópicos) ficou sem tópico pai. Remover também?". Se sim, aplique `podarOrfaos(roadmap, { somente: <os novos órfãos> })` **antes** da única chamada a `sessao.aplicar`, passando `removidos`.
+- O servidor limita o corpo a 5 MB (`MAX_TEXTO` de `pacote.js`), igual ao limite do `lerPacote`.
+- **Servidor para testar a UI:** NÃO use `server/index.js` do repositório (outro agente o está reescrevendo). Use o launcher já pronto, que serve o código congelado do servidor e os arquivos estáticos do repositório vivo:
+  `PORT=<porta livre> DB_FILE=<arquivo em diretório temporário> node <diretório de rascunho>/lancar.mjs` (o caminho completo vem na sua tarefa). A API é a mesma do contrato.
