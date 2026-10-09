@@ -41,16 +41,6 @@ async function iniciar() {
     servidor.listen(porta, host, resolver);
   });
 
-  const { port } = servidor.address();
-  console.log(`Grafos de estudo em http://${host.includes(':') ? `[${host}]` : host}:${port}`);
-  console.log(`Dados em ${arquivo}`);
-  if (!ehLoopback(host)) {
-    console.warn(
-      `Aviso: HOST=${host} deixa a API acessível pela rede e ela não tem autenticação: quem alcançar ` +
-        'esta porta pode ler, alterar e apagar todos os roadmaps e o progresso. Use só em rede confiável.',
-    );
-  }
-
   let encerrando = false;
   async function encerrar(sinal) {
     if (encerrando) return;
@@ -75,8 +65,20 @@ async function iniciar() {
       process.exitCode = 1;
     }
   }
+  // Os sinais já estão tratados antes de anunciar a URL: quem espera a linha para encerrar o processo
+  // (testes, scripts) nunca pega o servidor sem o encerramento elegante.
   process.once('SIGINT', () => encerrar('SIGINT'));
   process.once('SIGTERM', () => encerrar('SIGTERM'));
+
+  const { port } = servidor.address();
+  console.log(`Grafos de estudo em http://${host.includes(':') ? `[${host}]` : host}:${port}`);
+  console.log(`Dados em ${arquivo}`);
+  if (!ehLoopback(host)) {
+    console.warn(
+      `Aviso: HOST=${host} deixa a API acessível pela rede e ela não tem autenticação: quem alcançar ` +
+        'esta porta pode ler, alterar e apagar todos os roadmaps e o progresso. Use só em rede confiável.',
+    );
+  }
 }
 
 iniciar().catch((erro) => {
