@@ -2,20 +2,22 @@
 
 Roadmaps de estudo em **grafos** e **cards expansíveis**. Cada tópico é um card com resumo, exemplo de código e links; um card pode abrir um **subgrafo** (React → Hooks → useEffect). O progresso fica no navegador, com lembretes de **revisão espaçada**.
 
-JavaScript puro com ES modules, sem dependências e sem etapa de build.
+No navegador: JavaScript puro com ES modules, sem dependências e sem etapa de build. No servidor: Node com Express e os dados em um arquivo JSON.
 
 ## Como rodar
 
-Os módulos ES e o `fetch` do JSON não funcionam a partir de `file://`, então sirva a pasta por HTTP:
+Requer Node 22 ou mais novo. A única dependência é o `express`, que **não vem no repositório**: instale uma vez depois de clonar (e de novo se `package.json` mudar).
 
 ```sh
-npx serve .
-# ou: python3 -m http.server 8000
+npm install
+npm start
 ```
 
-e abra o endereço indicado. Rotas: `#react` (raiz), `#react/hooks`, `#react/perf`.
+e abra o endereço que o servidor imprime (por padrão http://127.0.0.1:3000). Variáveis opcionais: `PORT`, `HOST` e `DB_FILE` (arquivo onde os dados ficam; padrão `armazenamento/dados.json`, fora do Git).
 
-Testes das partes puras (layout, progresso, rotas e validação), com o `node:test` do Node 22+:
+Sem o servidor (por exemplo `npx serve .`) o app cai no **modo local**: só o roadmap de exemplo, somente leitura, com o progresso no `localStorage`. Abrir o `index.html` direto por `file://` não funciona, porque o navegador não carrega módulos ES nem JSON por esse protocolo.
+
+Testes (`node:test`, sem dependências extras):
 
 ```sh
 npm test
