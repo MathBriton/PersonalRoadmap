@@ -586,13 +586,13 @@ test('falha de gravação: 500 genérico sem caminho, e a memória continua igua
 
 // ---------------------------------------------------------------- formato do pedido
 
-test('corpo maior que 2 MB: 413; logo abaixo do limite o corpo é lido normalmente', () =>
+test('corpo maior que 5 MB (o mesmo limite do lerPacote): 413; logo abaixo do limite o corpo é lido normalmente', () =>
   comServidor(async ({ chamar, bruto }) => {
-    const enorme = JSON.stringify({ roadmap: 'x'.repeat(2 * 1024 * 1024 + 10) });
+    const enorme = JSON.stringify({ roadmap: 'x'.repeat(5 * 1024 * 1024 + 10) });
     for (const [metodo, caminho] of [['POST', '/api/roadmaps'], ['POST', '/api/roadmaps/x/progresso']]) {
       const r = await chamar(metodo, caminho, enorme);
       assert.equal(r.status, 413, caminho);
-      assert.match(r.corpo.erro, /2 MB/);
+      assert.match(r.corpo.erro, /5 MB/);
     }
     // Content-Length mentindo para menos não adianta: o limite vale para o que chega.
     const r = await bruto({
@@ -603,7 +603,7 @@ test('corpo maior que 2 MB: 413; logo abaixo do limite o corpo é lido normalmen
     });
     assert.equal(r.status, 413);
 
-    const quase = await chamar('POST', '/api/roadmaps', JSON.stringify({ roadmap: 'x'.repeat(1.9 * 1024 * 1024) }));
+    const quase = await chamar('POST', '/api/roadmaps', JSON.stringify({ roadmap: 'x'.repeat(4.9 * 1024 * 1024) }));
     assert.equal(quase.status, 400);
     assert.match(quase.corpo.erro, /Roadmap inválido/);
   }));

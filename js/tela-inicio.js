@@ -99,10 +99,11 @@ export function montarInicio(ctx) {
 
   async function novoRoadmap() {
     const dialogo = criarDialogo({ titulo: 'Novo roadmap' });
-    const form = el('form', { classe: 'formulario' });
+    // novalidate: a validação é nossa (mensagem em português, role="alert"), não o balão nativo do navegador.
+    const form = el('form', { classe: 'formulario', attrs: { novalidate: '' } });
     const campoTitulo = el('input', { attrs: { id: 'novo-roadmap-titulo', type: 'text', required: '', maxlength: '80', autocomplete: 'off' } });
     const campoDescricao = el('textarea', { attrs: { id: 'novo-roadmap-descricao', rows: '3', maxlength: '300' } });
-    const erro = el('p', { classe: 'erro-campo', attrs: { role: 'alert' } });
+    const erro = el('p', { classe: 'erro-campo', attrs: { role: 'alert', id: 'novo-roadmap-erro' } });
     erro.hidden = true;
     form.append(
       el('div', { classe: 'campo' }, el('label', { texto: 'Título', attrs: { for: 'novo-roadmap-titulo' } }), campoTitulo),
@@ -118,9 +119,13 @@ export function montarInicio(ctx) {
     form.addEventListener('submit', async (evento) => {
       evento.preventDefault();
       const nome = campoTitulo.value.trim();
+      campoTitulo.removeAttribute('aria-invalid');
+      campoTitulo.removeAttribute('aria-describedby');
       if (!nome) {
         erro.textContent = 'Informe um título.';
         erro.hidden = false;
+        campoTitulo.setAttribute('aria-invalid', 'true');
+        campoTitulo.setAttribute('aria-describedby', 'novo-roadmap-erro');
         campoTitulo.focus();
         return;
       }

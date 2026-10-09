@@ -13,9 +13,11 @@ import path from 'node:path';
 import express from 'express';
 import { grafosAlcancaveis, tituloDoRoadmap } from '../js/dados.js';
 import { idDeRoadmapValido } from '../js/ids.js';
+import { MAX_TEXTO } from '../js/pacote.js';
 import { ErroArmazenamento, roadmapNaoEncontrado } from './armazenamento.js';
 
-const LIMITE_CORPO = '2mb';
+// Igual ao limite de texto do lerPacote: um arquivo aceito pela importação não pode levar 413 ao ser enviado.
+const LIMITE_CORPO = MAX_TEXTO;
 const CSP =
   "default-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; " +
   "img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
@@ -31,7 +33,7 @@ const MENSAGENS_HTTP = {
   400: 'Requisição inválida.',
   403: 'Acesso negado.',
   404: 'Não encontrado.',
-  413: 'Corpo da requisição grande demais (limite de 2 MB).',
+  413: `Corpo da requisição grande demais (limite de ${MAX_TEXTO / 1024 / 1024} MB).`,
   415: 'Tipo de conteúdo não suportado.',
 };
 const STATUS_DE_ARMAZENAMENTO = {

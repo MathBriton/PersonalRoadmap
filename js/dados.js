@@ -37,6 +37,11 @@ export function validarRoadmap(bruto) {
       avisos.push(`Grafo "${grafoId}": o id não pode conter "/" (separador da rota); grafo ignorado.`);
       continue;
     }
+    // Atribuir grafos["__proto__"] trocaria o protótipo do objeto em vez de criar a chave.
+    if (grafoId === '__proto__') {
+      avisos.push('Grafo "__proto__": id reservado; grafo ignorado.');
+      continue;
+    }
     if (!ehObjeto(grafoBruto)) {
       avisos.push(`Grafo "${grafoId}": formato inválido; grafo ignorado.`);
       continue;

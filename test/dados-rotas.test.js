@@ -53,6 +53,16 @@ test('links que não são http(s) são descartados', () => {
   assert.deepEqual(roadmap.grafos.a.nos[0].links, [['ok', 'https://exemplo.com']]);
 });
 
+test('grafo com id "__proto__" é descartado com aviso, sem mexer no protótipo de grafos', () => {
+  const bruto = JSON.parse('{"raiz":"a","grafos":{"a":{"nos":[{"id":"x"}]},"__proto__":{"titulo":"mau","nos":[{"id":"y"}]}}}');
+  const { roadmap, avisos } = validarRoadmap(bruto);
+  assert.equal(avisos.length, 1);
+  assert.match(avisos[0], /__proto__/);
+  assert.deepEqual(Object.keys(roadmap.grafos), ['a']);
+  assert.equal(Object.getPrototypeOf(roadmap.grafos), Object.prototype);
+  assert.equal(roadmap.grafos.nos, undefined);
+});
+
 test('estrutura quebrada lança erro', () => {
   assert.throws(() => validarRoadmap(null), /inválido/);
   assert.throws(() => validarRoadmap({ raiz: 'a', grafos: {} }), /raiz/);
