@@ -1,0 +1,51 @@
+/* Tela inicial: seletor de roadmaps. */
+.roadmaps {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr));
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.roadmap-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--borda);
+  border-radius: 12px;
+  background: var(--superficie);
+  box-shadow: var(--sombra);
+}
+
+.roadmap-titulo {
+  margin: 0;
+  font-family: var(--fonte-titulo);
+  font-size: 1.3rem;
+  line-height: 1.2;
+}
+
+.roadmap-titulo a {
+  color: var(--acento);
+  text-underline-offset: 4px;
+}
+
+.roadmap-descricao,
+.roadmap-meta {
+  margin: 0;
+}
+
+.roadmap-meta {
+  color: var(--texto-suave);
+  font-size: 0.9rem;
+}
+
+.roadmap-card .barra {
+  width: 100%;
+}
+
+.roadmap-card .grupo {
+  margin-top: auto;
+  padding-top: 0.25rem;
+}

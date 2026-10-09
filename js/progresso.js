@@ -1,17 +1,19 @@
 // Progresso e revisão espaçada.
-// As regras (statusExibido, marcarStatus, registrarRevisao, contarProgresso) são puras;
-// só `criarRepositorio` toca o armazenamento, sempre dentro de try/catch.
+// Regras puras (statusExibido, marcarStatus, registrarRevisao, contarProgresso): sem DOM e sem
+// armazenamento. A persistência fica em repositorio.js e a mesclagem em sincronia.js.
+//
+// Cada registro guarda `atualizado` (ms) para que a mesclagem entre dispositivos e o
+// servidor (ver sincronia.js) fique com o mais recente de cada card.
 
 import { grafosAlcancaveis } from './dados.js';
 
-export const CHAVE_STORAGE = 'grafos-estudo-v1';
 export const DIA_MS = 24 * 60 * 60 * 1000;
 export const STATUS_MARCAVEIS = ['novo', 'estudando', 'dominado'];
 
-/** Chave de progresso de um nó: `idDoGrafo/idDoNo`. */
+/** Chave de progresso de um nó dentro do roadmap: `idDoGrafo/idDoNo`. */
 export const chaveDoNo = (grafoId, noId) => `${grafoId}/${noId}`;
 
-export const registroPadrao = () => ({ status: 'novo', intervalo: 0, proxima: 0 });
+export const registroPadrao = () => ({ status: 'novo', intervalo: 0, proxima: 0, atualizado: 0 });
 
 const numeroOuZero = (valor) => (Number.isFinite(Number(valor)) ? Number(valor) : 0);
 
@@ -25,15 +27,22 @@ function instante(valor) {
 export function normalizarRegistro(bruto) {
   if (bruto === null || typeof bruto !== 'object') return registroPadrao();
   const status = STATUS_MARCAVEIS.includes(bruto.status) ? bruto.status : 'novo';
-  if (status !== 'dominado') return { status, intervalo: 0, proxima: 0 };
-  return { status, intervalo: Math.max(0, numeroOuZero(bruto.intervalo)), proxima: instante(bruto.proxima) };
+  const atualizado = Math.max(0, numeroOuZero(bruto.atualizado));
+  if (status !== 'dominado') return { status, intervalo: 0, proxima: 0, atualizado };
+  return { status, intervalo: Math.max(0, numeroOuZero(bruto.intervalo)), proxima: instante(bruto.proxima), atualizado };
 }
 
+const chaveValida = (chave) => typeof chave === 'string' && chave.length <= 300 && chave.includes('/');
+
+/** Mapa "grafo/no" -> registro, descartando chaves malformadas. */
 export function normalizarDados(bruto) {
   if (bruto === null || typeof bruto !== 'object' || Array.isArray(bruto)) return {};
-  const dados = {};
-  for (const [chave, registro] of Object.entries(bruto)) dados[chave] = normalizarRegistro(registro);
-  return dados;
+  // fromEntries cria propriedades próprias, então uma chave "__proto__" vinda de JSON não mexe no protótipo.
+  return Object.fromEntries(
+    Object.entries(bruto)
+      .filter(([chave]) => chaveValida(chave))
+      .map(([chave, registro]) => [chave, normalizarRegistro(registro)]),
+  );
 }
 
 export const lerRegistro = (dados, grafoId, noId) =>
@@ -47,14 +56,14 @@ export function statusExibido(registro, agora) {
 
 /** Marca o status de um card (botões Não visto / Estudando / Dominado). */
 export function marcarStatus(status, agora) {
-  if (status === 'dominado') return { status, intervalo: 1, proxima: agora + DIA_MS };
-  return { status, intervalo: 0, proxima: 0 };
+  if (status === 'dominado') return { status, intervalo: 1, proxima: agora + DIA_MS, atualizado: agora };
+  return { status, intervalo: 0, proxima: 0, atualizado: agora };
 }
 
 /** Resposta à revisão: Lembrei dobra o intervalo; Esqueci volta a 1 dia. */
 export function registrarRevisao(registro, lembrou, agora) {
   const intervalo = lembrou ? Math.max(1, registro.intervalo) * 2 : 1;
-  return { status: 'dominado', intervalo, proxima: agora + intervalo * DIA_MS };
+  return { status: 'dominado', intervalo, proxima: agora + intervalo * DIA_MS, atualizado: agora };
 }
 
 /**
@@ -72,55 +81,4 @@ export function contarProgresso(roadmap, grafoId, dados) {
     }
   }
   return { feitos, total };
-}
-
-/**
- * Persistência no localStorage com fallback em memória. `obterStorage` é uma
- * função porque até acessar `localStorage` pode lançar erro (modo anônimo restrito).
- */
-export function criarRepositorio(obterStorage = () => globalThis.localStorage, chave = CHAVE_STORAGE) {
-  let memoria = {};
-  let emMemoria = false;
-
-  function ler() {
-    if (!emMemoria) {
-      let texto;
-      try {
-        texto = obterStorage().getItem(chave);
-      } catch {
-        emMemoria = true;
-        return memoria;
-      }
-      try {
-        memoria = texto ? normalizarDados(JSON.parse(texto)) : {};
-      } catch {
-        memoria = {};
-      }
-    }
-    return memoria;
-  }
-
-  function gravar(dados) {
-    memoria = dados;
-    if (emMemoria) return;
-    try {
-      obterStorage().setItem(chave, JSON.stringify(dados));
-    } catch {
-      emMemoria = true;
-    }
-  }
-
-  return {
-    ler,
-    definir(grafoId, noId, registro) {
-      gravar({ ...ler(), [chaveDoNo(grafoId, noId)]: registro });
-    },
-    limpar() {
-      gravar({});
-    },
-    /** Verdadeiro quando o storage falhou e o progresso só vive nesta aba. */
-    get emMemoria() {
-      return emMemoria;
-    },
-  };
 }

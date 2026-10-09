@@ -103,10 +103,68 @@ code {
 
 .marca {
   margin: 0;
+  color: inherit;
   font-family: var(--fonte-titulo);
   font-size: 1.25rem;
   font-weight: 700;
   letter-spacing: -0.01em;
+  text-decoration: none;
+}
+
+.marca:hover {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.menu {
+  margin-right: auto;
+}
+
+.menu-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 6px;
+  color: var(--acento);
+  font-weight: 600;
+  text-underline-offset: 3px;
+}
+
+.menu-link:hover {
+  background: var(--superficie-2);
+}
+
+.contagem {
+  min-width: 1.35rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  background: var(--st-revisar);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.35rem;
+  text-align: center;
+}
+
+.estado-sync {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--texto-suave);
+  font-size: 0.85rem;
+}
+
+.avisos {
+  margin: 0.75rem clamp(1rem, 4vw, 2rem) 0;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid var(--borda);
+  border-left: 5px solid var(--acento);
+  border-radius: 8px;
+  background: var(--superficie);
+}
+
+.avisos[data-tipo="erro"] {
+  border-left-color: var(--st-revisar);
 }
 
 .progresso-geral {
@@ -197,8 +255,23 @@ code {
   padding: 0.5rem clamp(1rem, 4vw, 2rem) 3rem;
 }
 
-.titulo-grafo {
+.cabeca-grafo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1.5rem;
   margin: 0.75rem 0 1.25rem;
+}
+
+.ferramentas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.titulo-grafo {
+  margin: 0;
   font-family: var(--fonte-titulo);
   font-size: clamp(1.6rem, 4vw, 2.25rem);
   font-weight: 700;
@@ -216,7 +289,7 @@ code {
 }
 
 .erro {
-  margin: 0 0 1rem;
+  margin: 0.75rem clamp(1rem, 4vw, 2rem) 0;
   padding: 0.75rem 1rem;
   border-radius: 8px;
   border: 1px solid var(--st-revisar);
@@ -490,9 +563,105 @@ code {
   filter: brightness(1.08);
 }
 
+.btn-perigo {
+  border-color: var(--st-revisar);
+  color: var(--texto);
+}
+
+.btn-perigo:hover {
+  background: var(--st-revisar);
+  color: #fff;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .btn-discreto {
   color: var(--texto-suave);
   font-weight: 400;
+}
+
+/* ---------- Diálogos (editor, importação, confirmações) ---------- */
+.dialogo {
+  width: min(34rem, calc(100vw - 2rem));
+  max-height: calc(100vh - 2rem);
+  padding: 0;
+  overflow: auto;
+  border: 1px solid var(--borda);
+  border-radius: 12px;
+  background: var(--superficie);
+  color: var(--texto);
+  box-shadow: 0 12px 40px rgb(0 0 0 / 30%);
+}
+
+.dialogo::backdrop {
+  background: rgb(10 12 18 / 55%);
+}
+
+.dialogo-titulo {
+  margin: 0;
+  padding: 1rem 1.25rem 0.5rem;
+  font-family: var(--fonte-titulo);
+  font-size: 1.3rem;
+}
+
+.dialogo-corpo {
+  padding: 0.25rem 1.25rem 0.5rem;
+}
+
+.dialogo-corpo p {
+  margin: 0 0 0.6rem;
+}
+
+.dialogo-rodape {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem 1rem;
+}
+
+/* ---------- Formulários ---------- */
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.85rem;
+}
+
+.campo label {
+  font-weight: 600;
+}
+
+.campo input,
+.campo textarea,
+.campo select {
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  background: var(--fundo);
+  color: var(--texto);
+  font: inherit;
+}
+
+.campo textarea {
+  resize: vertical;
+}
+
+.campo .ajuda {
+  margin: 0;
+  color: var(--texto-suave);
+  font-size: 0.85rem;
+}
+
+.erro-campo {
+  margin: 0 0 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--st-revisar);
+  border-radius: 8px;
 }
 
 /* ---------- Movimento reduzido ---------- */

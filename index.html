@@ -13,36 +13,41 @@
       href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Source+Sans+3:wght@400;600;700&display=swap"
     />
     <link rel="stylesheet" href="css/estilos.css" />
+    <link rel="stylesheet" href="css/inicio.css" />
+    <link rel="stylesheet" href="css/edicao.css" />
+    <link rel="stylesheet" href="css/revisao.css" />
+    <link rel="stylesheet" href="css/pacote.css" />
     <script type="module" src="js/main.js"></script>
   </head>
   <body>
     <header class="topo">
-      <p class="marca">Grafos de estudo</p>
-      <div class="progresso-geral">
+      <a class="marca" href="#">Grafos de estudo</a>
+      <nav class="menu" aria-label="Principal">
+        <a id="link-revisao" class="menu-link" href="#revisao">Revisão <span id="contagem-revisao" class="contagem" hidden></span></a>
+      </nav>
+      <div id="area-progresso" class="progresso-geral" hidden>
         <p id="progresso-texto" class="progresso-texto"></p>
         <div id="progresso-barra" class="barra" role="progressbar" aria-labelledby="progresso-texto" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0">
           <div id="progresso-preenchida" class="barra-preenchida"></div>
         </div>
         <button id="btn-zerar" class="btn btn-discreto" type="button">Zerar progresso</button>
       </div>
+      <p id="estado-sync" class="estado-sync"></p>
       <p id="aviso-storage" class="aviso" role="status" hidden>
-        O armazenamento do navegador está indisponível: o progresso fica só nesta aba e some ao recarregar.
+        O armazenamento do navegador está indisponível: sem o servidor, o progresso fica só nesta aba e some ao recarregar.
       </p>
     </header>
 
-    <nav id="trilha" class="trilha" aria-label="Trilha de grafos"></nav>
+    <nav id="trilha" class="trilha" aria-label="Trilha de grafos" hidden></nav>
 
-    <main class="principal">
-      <h1 id="titulo-grafo" class="titulo-grafo" tabindex="-1"></h1>
-      <p id="erro" class="erro" role="alert" hidden></p>
-      <p id="aviso-arquivo" class="erro" hidden>
-        Este projeto usa módulos ES e dados em JSON, que o navegador não carrega a partir de <code>file://</code>.
-        Sirva a pasta por HTTP, por exemplo com <code>npx serve</code>, e abra o endereço indicado.
-      </p>
-      <div id="quadro" class="quadro">
-        <div id="grafo" class="grafo"></div>
-      </div>
-    </main>
+    <p id="avisos" class="avisos" role="status" aria-live="polite" hidden></p>
+    <p id="erro" class="erro" role="alert" hidden></p>
+    <p id="aviso-arquivo" class="erro" hidden>
+      Este projeto usa módulos ES e dados em JSON, que o navegador não carrega a partir de <code>file://</code>.
+      Inicie o servidor com <code>npm start</code> e abra o endereço indicado.
+    </p>
+
+    <main id="principal" class="principal"></main>
 
     <noscript><p class="erro">Este aplicativo precisa de JavaScript.</p></noscript>
     <script>
