@@ -1,0 +1,187 @@
+{
+  "raiz": "react",
+  "grafos": {
+    "react": {
+      "titulo": "React",
+      "nos": [
+        {
+          "id": "jsx",
+          "titulo": "JSX",
+          "resumo": "Sintaxe que mistura marcação e JavaScript. Cada tag vira uma chamada de função que descreve um elemento da interface; chaves {} inserem expressões JavaScript.",
+          "exemplo": "const nome = \"Ada\";\nconst el = <h1 className=\"titulo\">Olá, {nome}!</h1>;",
+          "links": [
+            ["Docs: escrevendo marcação com JSX", "https://react.dev/learn/writing-markup-with-jsx"],
+            ["Docs: JavaScript dentro do JSX", "https://react.dev/learn/javascript-in-jsx-with-curly-braces"]
+          ]
+        },
+        {
+          "id": "componentes",
+          "titulo": "Componentes e props",
+          "resumo": "Um componente é uma função que recebe props (entradas somente de leitura) e devolve JSX. Componentes se compõem: um usa o outro como se fosse uma tag.",
+          "exemplo": "function Saudacao({ nome }) {\n  return <p>Olá, {nome}!</p>;\n}\n\n<Saudacao nome=\"Ada\" />",
+          "links": [
+            ["Docs: seu primeiro componente", "https://react.dev/learn/your-first-component"],
+            ["Docs: passando props", "https://react.dev/learn/passing-props-to-a-component"]
+          ]
+        },
+        {
+          "id": "estado",
+          "titulo": "Estado e eventos",
+          "resumo": "Estado é a memória do componente: quando muda, o React renderiza de novo. Eventos (onClick, onChange...) são o ponto onde o estado costuma ser atualizado.",
+          "exemplo": "const [curtidas, setCurtidas] = useState(0);\n\n<button onClick={() => setCurtidas(curtidas + 1)}>\n  Curtir ({curtidas})\n</button>",
+          "links": [
+            ["Docs: respondendo a eventos", "https://react.dev/learn/responding-to-events"],
+            ["Docs: estado, a memória do componente", "https://react.dev/learn/state-a-components-memory"]
+          ]
+        },
+        {
+          "id": "listas",
+          "titulo": "Renderização e listas",
+          "resumo": "Renderização condicional usa if, && e ternário. Listas usam map() e exigem uma key estável em cada item para o React saber o que mudou.",
+          "exemplo": "<ul>\n  {tarefas.map((t) => (\n    <li key={t.id}>{t.titulo}</li>\n  ))}\n</ul>",
+          "links": [
+            ["Docs: renderizando listas", "https://react.dev/learn/rendering-lists"],
+            ["Docs: renderização condicional", "https://react.dev/learn/conditional-rendering"]
+          ]
+        },
+        {
+          "id": "hooks",
+          "titulo": "Hooks",
+          "resumo": "Funções que começam com use e dão acesso a recursos do React (estado, efeitos, contexto...) dentro de componentes de função. Só podem ser chamadas no nível de topo do componente ou de outro hook.",
+          "exemplo": "const [n, setN] = useState(0);",
+          "links": [
+            ["Docs: referência de hooks", "https://react.dev/reference/react/hooks"],
+            ["Docs: regras dos hooks", "https://react.dev/reference/rules/rules-of-hooks"]
+          ],
+          "filho": "hooks"
+        },
+        {
+          "id": "performance",
+          "titulo": "Performance",
+          "resumo": "React renderiza de novo quando estado ou props mudam. Antes de otimizar, meça: memoização e divisão de código resolvem gargalos reais, mas custam complexidade.",
+          "exemplo": "const Item = React.memo(function Item({ dados }) {\n  return <li>{dados.titulo}</li>;\n});",
+          "links": [
+            ["Docs: renderizar e confirmar", "https://react.dev/learn/render-and-commit"],
+            ["Docs: React.memo", "https://react.dev/reference/react/memo"]
+          ],
+          "filho": "perf"
+        }
+      ],
+      "arestas": [
+        ["jsx", "componentes"],
+        ["componentes", "estado"],
+        ["componentes", "listas"],
+        ["estado", "hooks"],
+        ["hooks", "performance"],
+        ["listas", "performance"]
+      ]
+    },
+    "hooks": {
+      "titulo": "Hooks",
+      "nos": [
+        {
+          "id": "usestate",
+          "titulo": "useState",
+          "resumo": "Guarda um valor entre renderizações e devolve o valor atual e uma função para atualizá-lo. Chamar a função agenda uma nova renderização.",
+          "exemplo": "const [nome, setNome] = useState(\"\");\nsetNome(\"Ada\");\nsetNome((anterior) => anterior + \"!\");",
+          "links": [["Docs: useState", "https://react.dev/reference/react/useState"]]
+        },
+        {
+          "id": "useeffect",
+          "titulo": "useEffect",
+          "resumo": "Sincroniza o componente com algo externo (rede, timers, DOM, assinaturas). Roda depois da renderização e pode devolver uma função de limpeza. A lista de dependências controla quando roda de novo.",
+          "exemplo": "useEffect(() => {\n  const id = setInterval(tick, 1000);\n  return () => clearInterval(id);\n}, []);",
+          "links": [
+            ["Docs: useEffect", "https://react.dev/reference/react/useEffect"],
+            ["Docs: você talvez não precise de um efeito", "https://react.dev/learn/you-might-not-need-an-effect"]
+          ]
+        },
+        {
+          "id": "useref",
+          "titulo": "useRef",
+          "resumo": "Guarda um valor mutável que sobrevive às renderizações sem causar uma nova. Também é a forma de acessar um elemento do DOM diretamente.",
+          "exemplo": "const entrada = useRef(null);\n\n<input ref={entrada} />\n<button onClick={() => entrada.current.focus()}>Focar</button>",
+          "links": [["Docs: useRef", "https://react.dev/reference/react/useRef"]]
+        },
+        {
+          "id": "usereducer",
+          "titulo": "useReducer",
+          "resumo": "Alternativa ao useState quando o estado tem várias partes ou regras de atualização. A lógica fica numa função pura (reducer) que recebe o estado e uma ação.",
+          "exemplo": "function reducer(estado, acao) {\n  if (acao.tipo === \"somar\") return { n: estado.n + 1 };\n  return estado;\n}\nconst [estado, dispatch] = useReducer(reducer, { n: 0 });",
+          "links": [["Docs: useReducer", "https://react.dev/reference/react/useReducer"]]
+        },
+        {
+          "id": "usecontext",
+          "titulo": "useContext",
+          "resumo": "Lê um valor de um Context sem precisar passá-lo por props em cada nível. Todo componente que lê o contexto renderiza de novo quando o valor muda.",
+          "exemplo": "const TemaContext = createContext(\"claro\");\n\nfunction Botao() {\n  const tema = useContext(TemaContext);\n  return <button className={tema}>Ok</button>;\n}",
+          "links": [["Docs: useContext", "https://react.dev/reference/react/useContext"]]
+        },
+        {
+          "id": "customizados",
+          "titulo": "Hooks customizados",
+          "resumo": "Funções que começam com use e combinam outros hooks para reaproveitar lógica com estado entre componentes. Cada chamada tem o seu próprio estado.",
+          "exemplo": "function useOnline() {\n  const [online, setOnline] = useState(navigator.onLine);\n  useEffect(() => {\n    const mudar = () => setOnline(navigator.onLine);\n    window.addEventListener(\"online\", mudar);\n    window.addEventListener(\"offline\", mudar);\n    return () => {\n      window.removeEventListener(\"online\", mudar);\n      window.removeEventListener(\"offline\", mudar);\n    };\n  }, []);\n  return online;\n}",
+          "links": [["Docs: reaproveitando lógica com hooks customizados", "https://react.dev/learn/reusing-logic-with-custom-hooks"]]
+        }
+      ],
+      "arestas": [
+        ["usestate", "useeffect"],
+        ["usestate", "usereducer"],
+        ["useeffect", "useref"],
+        ["usereducer", "usecontext"],
+        ["useref", "customizados"],
+        ["usecontext", "customizados"]
+      ]
+    },
+    "perf": {
+      "titulo": "Performance",
+      "nos": [
+        {
+          "id": "keys",
+          "titulo": "Keys estáveis",
+          "resumo": "A key identifica cada item de uma lista entre renderizações. Use um id estável dos dados; índice do array ou valores aleatórios causam trabalho extra e perda de estado.",
+          "exemplo": "{itens.map((i) => (\n  <Linha key={i.id} item={i} />\n))}",
+          "links": [["Docs: mantendo a ordem dos itens com key", "https://react.dev/learn/rendering-lists#keeping-list-items-in-order-with-key"]]
+        },
+        {
+          "id": "memo",
+          "titulo": "React.memo",
+          "resumo": "Pula a renderização de um componente quando as props são iguais às da última vez (comparação rasa). Só ajuda se o componente é caro e as props realmente se repetem.",
+          "exemplo": "const Linha = memo(function Linha({ item }) {\n  return <li>{item.titulo}</li>;\n});",
+          "links": [["Docs: memo", "https://react.dev/reference/react/memo"]]
+        },
+        {
+          "id": "usememo",
+          "titulo": "useMemo",
+          "resumo": "Guarda o resultado de um cálculo caro e só o refaz quando as dependências mudam. Também estabiliza a identidade de objetos passados a componentes memoizados.",
+          "exemplo": "const visiveis = useMemo(\n  () => tarefas.filter((t) => !t.feita),\n  [tarefas]\n);",
+          "links": [["Docs: useMemo", "https://react.dev/reference/react/useMemo"]]
+        },
+        {
+          "id": "usecallback",
+          "titulo": "useCallback",
+          "resumo": "Guarda a identidade de uma função entre renderizações. É útil ao passá-la para componentes memoizados ou como dependência de um efeito.",
+          "exemplo": "const remover = useCallback(\n  (id) => setTarefas((ts) => ts.filter((t) => t.id !== id)),\n  []\n);",
+          "links": [["Docs: useCallback", "https://react.dev/reference/react/useCallback"]]
+        },
+        {
+          "id": "lazy",
+          "titulo": "lazy e Suspense",
+          "resumo": "lazy carrega o código de um componente só quando ele é renderizado pela primeira vez; Suspense mostra um fallback enquanto isso. Reduz o tamanho do pacote inicial.",
+          "exemplo": "const Grafico = lazy(() => import(\"./Grafico.jsx\"));\n\n<Suspense fallback={<p>Carregando...</p>}>\n  <Grafico />\n</Suspense>",
+          "links": [
+            ["Docs: lazy", "https://react.dev/reference/react/lazy"],
+            ["Docs: Suspense", "https://react.dev/reference/react/Suspense"]
+          ]
+        }
+      ],
+      "arestas": [
+        ["keys", "memo"],
+        ["keys", "lazy"],
+        ["memo", "usememo"],
+        ["memo", "usecallback"]
+      ]
+    }
+  }
+}

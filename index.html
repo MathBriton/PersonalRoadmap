@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Grafos de estudo</title>
+    <meta name="description" content="Roadmaps de estudo em grafos, com cards expansíveis, subgrafos, progresso e revisão espaçada." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Source+Sans+3:wght@400;600;700&display=swap"
+    />
+    <link rel="stylesheet" href="css/estilos.css" />
+    <script type="module" src="js/main.js"></script>
+  </head>
+  <body>
+    <header class="topo">
+      <p class="marca">Grafos de estudo</p>
+      <div class="progresso-geral">
+        <p id="progresso-texto" class="progresso-texto"></p>
+        <div id="progresso-barra" class="barra" role="progressbar" aria-labelledby="progresso-texto" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0">
+          <div id="progresso-preenchida" class="barra-preenchida"></div>
+        </div>
+        <button id="btn-zerar" class="btn btn-discreto" type="button">Zerar progresso</button>
+      </div>
+      <p id="aviso-storage" class="aviso" role="status" hidden>
+        O armazenamento do navegador está indisponível: o progresso fica só nesta aba e some ao recarregar.
+      </p>
+    </header>
+
+    <nav id="trilha" class="trilha" aria-label="Trilha de grafos"></nav>
+
+    <main class="principal">
+      <h1 id="titulo-grafo" class="titulo-grafo" tabindex="-1"></h1>
+      <p id="erro" class="erro" role="alert" hidden></p>
+      <p id="aviso-arquivo" class="erro" hidden>
+        Este projeto usa módulos ES e dados em JSON, que o navegador não carrega a partir de <code>file://</code>.
+        Sirva a pasta por HTTP, por exemplo com <code>npx serve</code>, e abra o endereço indicado.
+      </p>
+      <div id="quadro" class="quadro">
+        <div id="grafo" class="grafo"></div>
+      </div>
+    </main>
+
+    <noscript><p class="erro">Este aplicativo precisa de JavaScript.</p></noscript>
+    <script>
+      if (location.protocol === 'file:') document.getElementById('aviso-arquivo').hidden = false;
+    </script>
+  </body>
+</html>

@@ -1,0 +1,11 @@
+{
+  "name": "grafos-de-estudo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Roadmaps de estudo em grafos, com cards expansíveis, subgrafos, progresso e revisão espaçada.",
+  "type": "module",
+  "scripts": {
+    "start": "npx serve .",
+    "test": "node --test"
+  }
+}
