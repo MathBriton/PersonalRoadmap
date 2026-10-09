@@ -110,8 +110,14 @@ export function validarRoadmap(bruto) {
     }
   }
 
-  return { roadmap: { raiz: bruto.raiz, grafos }, avisos };
+  const roadmap = { raiz: bruto.raiz, grafos };
+  if (ehTexto(bruto.titulo) && bruto.titulo.trim() !== '') roadmap.titulo = bruto.titulo.trim();
+  if (ehTexto(bruto.descricao) && bruto.descricao.trim() !== '') roadmap.descricao = bruto.descricao.trim();
+  return { roadmap, avisos };
 }
+
+/** Título do roadmap: o `titulo` próprio, ou o do grafo raiz. */
+export const tituloDoRoadmap = (roadmap) => roadmap.titulo ?? roadmap.grafos[roadmap.raiz].titulo;
 
 /**
  * Ids dos grafos alcançáveis a partir de `inicio` (inclusive) seguindo `filho`.

@@ -1,117 +1,178 @@
-// Inicialização e ligação dos módulos.
+// Inicialização e ligação dos módulos: escolhe a fonte de dados (servidor ou local),
+// monta o contexto compartilhado e troca de tela conforme a rota.
 
-import { desenharArestas } from './arestas.js';
-import { carregarRoadmap } from './dados.js';
-import { contarProgresso, criarRepositorio, lerRegistro, marcarStatus, registrarRevisao } from './progresso.js';
-import { focoAtual, renderCabecalho, renderGrafo, renderTrilha, restaurarFoco } from './render.js';
-import { criarRotas } from './rotas.js';
+import { criarApi } from './api.js';
+import { criarFonte } from './fonte.js';
+import { criarRepositorio } from './repositorio.js';
+import { contarRevisoes } from './revisao.js';
+import { ROTA_INICIO, criarRotas } from './rotas.js';
+import { criarSincronizador } from './sync.js';
+import { montarInicio } from './tela-inicio.js';
+import { montarRoadmap } from './tela-roadmap.js';
 
-const URL_DADOS = new URL('../data/react.json', import.meta.url);
-const NOME_APP = 'Grafos de estudo';
 const porId = (id) => document.getElementById(id);
+const MS_AVISO = 8000;
 
-function mostrarErro(mensagem) {
-  const erro = porId('erro');
-  erro.textContent = mensagem;
-  erro.hidden = false;
-}
+const TEXTO_SYNC = {
+  local: 'Modo local: sem servidor, o progresso fica só neste navegador.',
+  sincronizado: 'Salvo no servidor.',
+  enviando: 'Salvando…',
+  offline: 'Sem conexão com o servidor. O progresso está salvo neste navegador e será enviado depois.',
+};
 
 async function iniciar() {
-  let roadmap;
-  try {
-    roadmap = await carregarRoadmap(URL_DADOS);
-  } catch (erro) {
-    console.error(erro);
-    mostrarErro(`Não foi possível carregar os dados: ${erro.message}`);
-    return;
-  }
-
+  const fonte = await criarFonte(criarApi());
   const repo = criarRepositorio();
-  const abertos = new Set(); // cards abertos na visita atual ao grafo
-  const grafoEl = porId('grafo');
-  const quadro = porId('quadro');
-  const cabecalho = {
+  const cache = new Map(); // roadmapId -> { id, roadmap, atualizadoEm }
+
+  const principal = porId('principal');
+  const trilha = porId('trilha');
+  const botaoZerar = porId('btn-zerar');
+  const refsProgresso = {
     texto: porId('progresso-texto'),
     barra: porId('progresso-barra'),
     preenchida: porId('progresso-preenchida'),
     aviso: porId('aviso-storage'),
   };
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.setAttribute('class', 'arestas');
-  svg.setAttribute('aria-hidden', 'true');
 
-  let grafoId = roadmap.raiz;
-  let cartoes = new Map();
-  let dominados = new Set();
-
-  function redesenhar() {
-    desenharArestas(svg, grafoEl, cartoes, roadmap.grafos[grafoId].arestas, dominados);
+  let temporizadorAviso = null;
+  function avisar(mensagem, tipo = 'info') {
+    const area = porId('avisos');
+    clearTimeout(temporizadorAviso);
+    area.textContent = mensagem;
+    area.dataset.tipo = tipo;
+    area.hidden = false;
+    temporizadorAviso = setTimeout(() => {
+      area.hidden = true;
+    }, MS_AVISO);
   }
 
-  // Cards mudam de tamanho ao expandir, ao girar a tela ou quando as fontes chegam.
-  const observador = typeof ResizeObserver === 'function' ? new ResizeObserver(redesenhar) : null;
+  function mostrarErro(mensagem) {
+    const erro = porId('erro');
+    erro.textContent = mensagem ?? '';
+    erro.hidden = !mensagem;
+  }
 
-  const rotas = criarRotas(roadmap, () => {
-    abertos.clear();
-    renderizar({ moverFoco: true });
+  let tela = null;
+  let roadmapAtivo = null;
+
+  let estadoAnterior = null;
+  const sync = criarSincronizador({
+    repo,
+    fonte,
+    aoMudarEstado(estado) {
+      porId('estado-sync').textContent = TEXTO_SYNC[estado];
+      if (estado === 'offline') avisar(TEXTO_SYNC.offline, 'erro');
+      else if (estado === 'sincronizado' && estadoAnterior === 'offline') avisar('Conexão restabelecida: progresso sincronizado.');
+      if (estado !== 'enviando') estadoAnterior = estado;
+    },
+    aoAtualizar(id) {
+      tela?.aoAtualizarProgresso?.(id);
+      atualizarContagemRevisao();
+    },
   });
+  porId('estado-sync').textContent = TEXTO_SYNC[sync.estado];
 
-  const acoes = {
-    aoAlternar(noId, aberto) {
-      if (aberto) abertos.add(noId);
-      else abertos.delete(noId);
-      redesenhar();
+  function atualizarContagemRevisao() {
+    const entradas = [...cache.values()].map(({ id, roadmap }) => ({ id, roadmap, registros: repo.escopo(id).ler() }));
+    const total = contarRevisoes(entradas, Date.now());
+    const marcador = porId('contagem-revisao');
+    marcador.textContent = String(total);
+    marcador.hidden = total === 0;
+    porId('link-revisao').setAttribute('aria-label', total > 0 ? `Revisão: ${total} para revisar hoje` : 'Revisão');
+  }
+
+  const ctx = {
+    fonte,
+    repo,
+    sync,
+    principal,
+    trilha,
+    primeiraCarga: true,
+    avisar,
+    mostrarErro,
+    atualizarContagemRevisao,
+    cabecalho: {
+      refs: refsProgresso,
+      mostrar: (visivel) => {
+        porId('area-progresso').hidden = !visivel;
+      },
+      aoZerar: (funcao) => {
+        botaoZerar.onclick = funcao;
+      },
     },
-    aoMarcar(noId, status) {
-      repo.definir(grafoId, noId, marcarStatus(status, Date.now()));
-      renderizar();
+    mostrarTrilha: (visivel) => {
+      trilha.hidden = !visivel;
     },
-    aoRevisar(noId, lembrou) {
-      repo.definir(grafoId, noId, registrarRevisao(lerRegistro(repo.ler(), grafoId, noId), lembrou, Date.now()));
-      renderizar();
+    rotas: null,
+    /** Todos os roadmaps com seus dados; reaproveita o cache quando o `atualizadoEm` não mudou. */
+    async entradas() {
+      const lista = await fonte.listar();
+      const idsAtuais = new Set(lista.map((meta) => meta.id));
+      for (const id of cache.keys()) if (!idsAtuais.has(id)) cache.delete(id);
+      return Promise.all(
+        lista.map(async (meta) => {
+          const guardado = cache.get(meta.id);
+          if (guardado && meta.atualizadoEm && guardado.atualizadoEm === meta.atualizadoEm) return guardado;
+          const dados = await fonte.obter(meta.id);
+          cache.set(meta.id, dados);
+          return dados;
+        }),
+      );
     },
-    aoAbrir: (filhoId) => rotas.abrir(filhoId),
+    guardar: (dados) => cache.set(dados.id, dados),
+    esquecer: (id) => cache.delete(id),
   };
 
-  function renderizar({ moverFoco = false } = {}) {
-    const caminho = rotas.caminho();
-    grafoId = caminho.at(-1);
-    const grafo = roadmap.grafos[grafoId];
-    const dados = repo.ler();
-    const agora = Date.now();
-
-    renderCabecalho(cabecalho, { ...contarProgresso(roadmap, roadmap.raiz, dados), emMemoria: repo.emMemoria });
-    renderTrilha(porId('trilha'), caminho.map((id) => roadmap.grafos[id].titulo), (indice) => rotas.voltarPara(indice));
-    porId('titulo-grafo').textContent = grafo.titulo;
-    document.title = `${grafo.titulo} · ${NOME_APP}`;
-
-    const foco = focoAtual(grafoEl);
-    cartoes = renderGrafo(grafoEl, svg, { grafoId, grafo, roadmap, dados, agora, abertos, acoes });
-    dominados = new Set(grafo.nos.filter((no) => lerRegistro(dados, grafoId, no.id).status === 'dominado').map((no) => no.id));
-    restaurarFoco(grafoEl, foco);
-
-    if (observador) {
-      observador.disconnect();
-      observador.observe(grafoEl);
-      for (const card of cartoes.values()) observador.observe(card);
+  function montarTela(rota) {
+    if (rota.tela === 'roadmap') return montarRoadmap(ctx, rota);
+    if (rota.tela === 'revisao') {
+      // Carregada sob demanda: se falhar, o resto do app continua funcionando.
+      let vivo = true;
+      let montada = null;
+      import('./tela-revisao.js')
+        .then((modulo) => {
+          if (vivo) montada = modulo.montarRevisao(ctx);
+        })
+        .catch((erro) => {
+          console.error(erro);
+          if (vivo) mostrarErro('Não foi possível carregar a fila de revisão.');
+        });
+      return {
+        aoAtualizarProgresso: (id) => montada?.aoAtualizarProgresso?.(id),
+        desmontar() {
+          vivo = false;
+          montada?.desmontar?.();
+        },
+      };
     }
-    redesenhar();
-
-    if (moverFoco) {
-      quadro.scrollLeft = 0;
-      porId('titulo-grafo').focus();
-    }
+    return montarInicio(ctx);
   }
 
-  porId('btn-zerar').addEventListener('click', () => {
-    if (!confirm('Zerar todo o progresso? Isso apaga o status e as revisões de todos os tópicos.')) return;
-    repo.limpar();
-    renderizar();
-  });
+  function aoMudarRota(rota) {
+    mostrarErro(null);
+    if (tela?.aoMudarRota?.(rota)) return;
+    tela?.desmontar?.();
+    principal.replaceChildren();
+    roadmapAtivo = rota.tela === 'roadmap' ? rota.roadmapId : null;
+    tela = montarTela(rota);
+    ctx.primeiraCarga = false;
+  }
 
-  window.addEventListener('resize', redesenhar);
-  document.fonts?.ready.then(redesenhar);
-  renderizar();
+  ctx.rotas = criarRotas(aoMudarRota);
+
+  // Ao voltar para a aba ou recuperar a rede, troca progresso com o servidor (inclui mudanças de outros dispositivos).
+  function sincronizarAgora() {
+    if (!fonte.progresso) return;
+    sync.sincronizarTodos(roadmapAtivo ? [roadmapAtivo] : [...cache.keys()]);
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') sincronizarAgora();
+  });
+  window.addEventListener('online', sincronizarAgora);
+
+  aoMudarRota(ctx.rotas.rota());
+  ctx.entradas().then(atualizarContagemRevisao, () => {});
 }
 
 iniciar();

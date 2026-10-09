@@ -5,7 +5,11 @@
   "description": "Roadmaps de estudo em grafos, com cards expansíveis, subgrafos, progresso e revisão espaçada.",
   "type": "module",
   "scripts": {
-    "start": "npx serve .",
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
     "test": "node --test"
+  },
+  "dependencies": {
+    "express": "^5.3.0"
   }
 }

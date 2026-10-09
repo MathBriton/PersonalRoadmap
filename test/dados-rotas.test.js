@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
-import { grafosAlcancaveis, validarRoadmap } from '../js/dados.js';
-import { caminhoDoHash, hashDoCaminho } from '../js/rotas.js';
+import { grafosAlcancaveis, tituloDoRoadmap, validarRoadmap } from '../js/dados.js';
+import { ROTA_INICIO, caminhoDaRota, hashDaRota, rotaDoHash, rotaDoRoadmap } from '../js/rotas.js';
 
 const lerReact = async () => JSON.parse(await readFile(new URL('../data/react.json', import.meta.url), 'utf8'));
 
@@ -58,29 +58,62 @@ test('estrutura quebrada lança erro', () => {
   assert.throws(() => validarRoadmap({ raiz: 'a', grafos: {} }), /raiz/);
 });
 
-const roadmap = validarRoadmap({
-  raiz: 'react',
-  grafos: { react: { nos: [{ id: 'h', filho: 'hooks' }] }, hooks: { nos: [] }, perf: { nos: [] } },
-}).roadmap;
-
-test('caminhoDoHash lê o caminho a partir da raiz', () => {
-  assert.deepEqual(caminhoDoHash('#react/hooks', roadmap), ['react', 'hooks']);
-  assert.deepEqual(caminhoDoHash('#/react/perf/', roadmap), ['react', 'perf']);
-  assert.deepEqual(caminhoDoHash('#react', roadmap), ['react']);
+test('preserva titulo e descricao opcionais do roadmap e tituloDoRoadmap usa o da raiz como padrão', () => {
+  const { roadmap } = validarRoadmap({ ...minimo(), titulo: '  Meu roadmap ', descricao: 'Texto', extra: 1 });
+  assert.equal(roadmap.titulo, 'Meu roadmap');
+  assert.equal(roadmap.descricao, 'Texto');
+  assert.equal(tituloDoRoadmap(roadmap), 'Meu roadmap');
+  assert.equal(tituloDoRoadmap(validarRoadmap(minimo()).roadmap), 'A');
+  assert.equal('extra' in roadmap, false);
 });
 
-test('hash vazio, grafo inexistente ou sem a raiz cai na raiz', () => {
-  for (const hash of ['', '#', '#hooks', '#react/nao-existe', '#nao-existe', undefined, '#react/%E0%A4%A']) {
-    assert.deepEqual(caminhoDoHash(hash, roadmap), ['react'], String(hash));
+const roadmap = validarRoadmap({
+  raiz: 'principal',
+  grafos: { principal: { nos: [{ id: 'h', filho: 'hooks' }] }, hooks: { nos: [] }, perf: { nos: [] } },
+}).roadmap;
+
+test('rotaDoHash: vazio, # e #/ são a tela inicial', () => {
+  for (const hash of ['', '#', '#/', undefined, null]) assert.deepEqual(rotaDoHash(hash), ROTA_INICIO, String(hash));
+});
+
+test('rotaDoHash: #revisao é a fila de revisão', () => {
+  assert.deepEqual(rotaDoHash('#revisao'), { tela: 'revisao' });
+  assert.deepEqual(rotaDoHash('#/revisao/qualquer-coisa'), { tela: 'revisao' });
+});
+
+test('rotaDoHash: #<roadmap>/<grafos> vira rota de roadmap', () => {
+  assert.deepEqual(rotaDoHash('#react'), { tela: 'roadmap', roadmapId: 'react', relativo: [] });
+  assert.deepEqual(rotaDoHash('#react/hooks'), { tela: 'roadmap', roadmapId: 'react', relativo: ['hooks'] });
+  assert.deepEqual(rotaDoHash('#/react/perf/'), { tela: 'roadmap', roadmapId: 'react', relativo: ['perf'] });
+});
+
+test('rotaDoHash: id de roadmap inválido cai na tela inicial', () => {
+  for (const hash of ['#React', '#a b', '#../x', '#api', '#-x', '#%E0%A4%A']) {
+    assert.deepEqual(rotaDoHash(hash), ROTA_INICIO, hash);
   }
 });
 
-test('ids como "constructor" não passam por propriedades herdadas', () => {
-  assert.deepEqual(caminhoDoHash('#react/constructor', roadmap), ['react']);
+test('hashDaRota e rotaDoHash são inversos', () => {
+  for (const hash of ['', '#revisao', '#react', '#react/hooks', '#python/a/b']) {
+    assert.equal(hashDaRota(rotaDoHash(hash)), hash);
+  }
 });
 
-test('hashDoCaminho e caminhoDoHash são inversos', () => {
-  const caminho = ['react', 'hooks'];
-  assert.equal(hashDoCaminho(caminho), '#react/hooks');
-  assert.deepEqual(caminhoDoHash(hashDoCaminho(caminho), roadmap), caminho);
+test('caminhoDaRota acrescenta a raiz (que não aparece na URL) e valida os grafos', () => {
+  const rota = (relativo) => ({ tela: 'roadmap', roadmapId: 'x', relativo });
+  assert.deepEqual(caminhoDaRota(rota([]), roadmap), ['principal']);
+  assert.deepEqual(caminhoDaRota(rota(['hooks']), roadmap), ['principal', 'hooks']);
+  assert.deepEqual(caminhoDaRota(rota(['hooks', 'perf']), roadmap), ['principal', 'hooks', 'perf']);
+});
+
+test('caminhoDaRota: grafo inexistente cai na raiz', () => {
+  const rota = (relativo) => ({ tela: 'roadmap', roadmapId: 'x', relativo });
+  assert.deepEqual(caminhoDaRota(rota(['nao-existe']), roadmap), ['principal']);
+  assert.deepEqual(caminhoDaRota(rota(['hooks', 'nao-existe']), roadmap), ['principal']);
+  assert.deepEqual(caminhoDaRota(rota(['constructor']), roadmap), ['principal']);
+});
+
+test('rotaDoRoadmap tira a raiz do caminho', () => {
+  assert.deepEqual(rotaDoRoadmap('react', ['principal', 'hooks']), { tela: 'roadmap', roadmapId: 'react', relativo: ['hooks'] });
+  assert.equal(hashDaRota(rotaDoRoadmap('react', ['principal'])), '#react');
 });

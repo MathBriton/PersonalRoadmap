@@ -1,6 +1,7 @@
 // Renderização do cabeçalho, da trilha e dos cards. Todo o DOM é montado com
 // createElement/textContent: nenhum texto vindo dos dados passa por innerHTML.
 
+import { botao, el } from './dom.js';
 import { organizarColunas } from './layout.js';
 import { contarProgresso, lerRegistro, statusExibido } from './progresso.js';
 
@@ -11,23 +12,6 @@ const ROTULOS = {
   revisar: 'Revisar hoje',
 };
 const STATUS_BOTOES = ['novo', 'estudando', 'dominado'];
-
-function el(tag, { classe, texto, attrs = {} } = {}, ...filhos) {
-  const elemento = document.createElement(tag);
-  if (classe) elemento.className = classe;
-  if (texto !== undefined) elemento.textContent = texto;
-  for (const [nome, valor] of Object.entries(attrs)) elemento.setAttribute(nome, valor);
-  elemento.append(...filhos.filter(Boolean));
-  return elemento;
-}
-
-function botao(texto, foco, aoClicar, { classe = 'btn', pressionado } = {}) {
-  const attrs = { type: 'button', 'data-foco': foco };
-  if (pressionado !== undefined) attrs['aria-pressed'] = String(pressionado);
-  const elemento = el('button', { classe, texto, attrs });
-  elemento.addEventListener('click', aoClicar);
-  return elemento;
-}
 
 /** Texto e barra de progresso geral, mais o aviso de armazenamento indisponível. */
 export function renderCabecalho(refs, { feitos, total, emMemoria }) {
@@ -56,7 +40,7 @@ export function renderTrilha(nav, titulos, aoIr) {
 }
 
 function criarCard(no, indice, ctx) {
-  const { grafoId, roadmap, dados, agora, abertos, acoes } = ctx;
+  const { grafoId, roadmap, dados, agora, abertos, acoes, edicao } = ctx;
   const registro = lerRegistro(dados, grafoId, no.id);
   const status = statusExibido(registro, agora);
   const aberto = abertos.has(no.id);
@@ -118,6 +102,16 @@ function criarCard(no, indice, ctx) {
   }
   if (filho) {
     grupoAcoes.append(botao('Abrir subgrafo', foco('subgrafo'), () => acoes.aoAbrir(no.filho), { classe: 'btn btn-primario' }));
+  }
+  if (edicao?.ativo) {
+    grupoAcoes.append(
+      el(
+        'div',
+        { classe: 'grupo', attrs: { role: 'group', 'aria-label': 'Edição do tópico' } },
+        botao('Editar tópico', foco('editar'), () => edicao.aoEditar(no.id)),
+        botao('Remover tópico', foco('remover'), () => edicao.aoRemover(no.id), { classe: 'btn btn-perigo' }),
+      ),
+    );
   }
   detalhe.append(grupoAcoes);
 
